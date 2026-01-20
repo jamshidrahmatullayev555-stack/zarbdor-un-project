@@ -141,21 +141,23 @@ async def admin_request_code(data: AdminRequestCodeModel):
         raise HTTPException(status_code=404, detail="Admin not found")
     
     code = generate_verification_code()
-    # Store code temporarily (using phone as admin_id string)
-    db.create_verification_code(str(data.admin_id), code, CODE_EXPIRE_MINUTES)
+    # Store code with admin: prefix to avoid conflicts with user phone numbers
+    db.create_verification_code(f"admin:{data.admin_id}", code, CODE_EXPIRE_MINUTES)
     
     # TODO: Send code via Telegram bot
-    # For now, return code in response (ONLY FOR DEVELOPMENT)
+    # DEVELOPMENT ONLY: In production, remove code from response and implement Telegram bot delivery
     return {
         "message": "Verification code sent to admin",
         "success": True,
-        "code": code  # Remove this in production
+        # WARNING: Remove 'code' field in production - security risk!
+        "code": code  # DEVELOPMENT ONLY
     }
 
 @router.post("/auth/verify-code")
 async def admin_verify_code(data: AdminVerifyCodeModel):
     """Verify admin code and return JWT token"""
-    if not db.verify_code(str(data.admin_id), data.code):
+    # Use admin: prefix to match request-code
+    if not db.verify_code(f"admin:{data.admin_id}", data.code):
         raise HTTPException(status_code=400, detail="Invalid or expired code")
     
     admin = db.get_admin(data.admin_id)

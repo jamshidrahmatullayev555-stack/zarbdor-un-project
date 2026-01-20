@@ -120,11 +120,12 @@ async def request_verification_code(data: RequestCodeModel):
     db.create_verification_code(data.phone, code, CODE_EXPIRE_MINUTES)
     
     # TODO: Send code via SMS or Telegram userbot
-    # For now, return code in response (ONLY FOR DEVELOPMENT)
+    # DEVELOPMENT ONLY: In production, remove code from response and implement proper SMS/Telegram delivery
     return {
         "message": f"Verification code sent to {data.phone}",
         "success": True,
-        "code": code  # Remove this in production
+        # WARNING: Remove 'code' field in production - security risk!
+        "code": code  # DEVELOPMENT ONLY
     }
 
 @router.post("/api/auth/verify-code", response_model=TokenResponse)
@@ -137,7 +138,15 @@ async def verify_verification_code(data: VerifyCodeModel):
     user = db.get_user_by_phone(data.phone)
     if not user:
         # Create new user with phone
-        user_id = int(data.phone.replace('+', ''))
+        # Generate unique user_id using hash to avoid collisions
+        import hashlib
+        phone_hash = int(hashlib.sha256(data.phone.encode()).hexdigest()[:15], 16)
+        user_id = phone_hash
+        
+        # Ensure uniqueness
+        while db.get_user(user_id):
+            user_id = int(hashlib.sha256(f"{data.phone}{user_id}".encode()).hexdigest()[:15], 16)
+        
         db.create_user(user_id, phone=data.phone)
         user = db.get_user(user_id)
     
