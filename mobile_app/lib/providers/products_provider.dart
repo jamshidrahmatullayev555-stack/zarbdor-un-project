@@ -6,7 +6,7 @@ import '../services/api_service.dart';
 class ProductsProvider with ChangeNotifier {
   final ApiService _apiService;
   
-  List<Category> _categories = [];
+  List<ProductCategory> _categories = [];
   List<Product> _products = [];
   int? _selectedCategoryId;
   String _searchQuery = '';
@@ -19,7 +19,7 @@ class ProductsProvider with ChangeNotifier {
     loadProducts();
   }
 
-  List<Category> get categories => _categories;
+  List<ProductCategory> get categories => _categories;
   List<Product> get products => _products;
   int? get selectedCategoryId => _selectedCategoryId;
   String get searchQuery => _searchQuery;
@@ -29,7 +29,7 @@ class ProductsProvider with ChangeNotifier {
   Future<void> loadCategories() async {
     try {
       final data = await _apiService.getCategories();
-      _categories = data.map((json) => Category.fromJson(json)).toList();
+      _categories = data.map((json) => ProductCategory.fromJson(json)).toList();
       notifyListeners();
     } catch (e) {
       print('Error loading categories: $e');

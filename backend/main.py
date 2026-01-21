@@ -1,24 +1,32 @@
 """
 ZarbdorUn E-commerce Platform - Main Entry Point
 Runs both Telegram Bot and FastAPI server concurrently
+Windows Compatible - UTF-8 Encoding Support
 """
 
 import asyncio
 import logging
 import os
-import signal
 import sys
 from contextlib import asynccontextmanager
 
 import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
 from fastapi import FastAPI
 
 from config import BOT_TOKEN, API_HOST, API_PORT, UPLOAD_DIR
 from database import init_db
-from bot.handlers import setup_handlers
+from bot.handlers import register_all_handlers
 
+# Windows compatibility and UTF-8 encoding fix
+if sys.platform == 'win32':
+    # Fix UTF-8 encoding for emoji support
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    # Use WindowsSelectorEventLoopPolicy for Windows
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Configure logging
 logging.basicConfig(
@@ -26,7 +34,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('zarbdor.log')
+        logging.FileHandler('zarbdor.log', encoding='utf-8')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -36,7 +44,6 @@ logger = logging.getLogger(__name__)
 bot = None
 dp = None
 api_server = None
-shutdown_event = asyncio.Event()
 
 
 def create_uploads_directory():
@@ -50,15 +57,17 @@ async def init_bot():
     global bot, dp
     
     try:
-        # Create bot instance
-        bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
+        # Create bot instance with DefaultBotProperties (Aiogram 3.x)
+        bot = Bot(
+            token=BOT_TOKEN, 
+            default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+        )
         
         # Create dispatcher
         dp = Dispatcher()
         
-        # Setup all handlers
-        main_router = setup_handlers()
-        dp.include_router(main_router)
+        # Register all handlers
+        register_all_handlers(dp)
         
         logger.info("✅ Telegram bot initialized successfully")
         return bot, dp
@@ -137,14 +146,7 @@ async def shutdown():
     if api_server:
         api_server.should_exit = True
     
-    shutdown_event.set()
     logger.info("✅ Shutdown complete")
-
-
-def handle_signal(sig):
-    """Handle shutdown signals"""
-    logger.info(f"📡 Received signal {sig}")
-    asyncio.create_task(shutdown())
 
 
 async def main():
@@ -161,14 +163,6 @@ async def main():
         # Initialize bot
         await init_bot()
         
-        # Setup signal handlers
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(
-                sig,
-                lambda s=sig: handle_signal(s)
-            )
-        
         # Run both bot and API concurrently
         logger.info("🚀 Starting ZarbdorUn E-commerce Platform...")
         logger.info("=" * 60)
@@ -177,13 +171,6 @@ async def main():
             asyncio.create_task(run_bot(), name="telegram_bot"),
             asyncio.create_task(run_api(), name="fastapi_server")
         ]
-        
-        # Wait for shutdown event
-        await shutdown_event.wait()
-        
-        # Cancel all tasks
-        for task in tasks:
-            task.cancel()
         
         # Wait for tasks to complete
         await asyncio.gather(*tasks, return_exceptions=True)

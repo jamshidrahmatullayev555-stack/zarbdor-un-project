@@ -66,6 +66,12 @@ class SearchStates(StatesGroup):
     """Product search states"""
     waiting_for_query = State()
 
+class CatalogStates(StatesGroup):
+    """Product catalog browsing states"""
+    browsing_categories = State()
+    browsing_products = State()
+    viewing_product = State()
+
 class UserbotStates(StatesGroup):
     """Userbot configuration states"""
     waiting_for_api_id = State()
